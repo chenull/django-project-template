@@ -6,6 +6,8 @@ os.environ.setdefault('BROKER_HOST', '127.0.0.1:5672')
 
 ENVIRONMENT = os.environ['ENVIRONMENT']
 
+SECRET_KEY = os.environ['SECRET_KEY']
+
 DEBUG = False
 
 DATABASES['default']['NAME'] = '{{ project_name }}_%s' % ENVIRONMENT.lower()
@@ -33,13 +35,27 @@ EMAIL_SUBJECT_PREFIX = '[{{ project_name|title }} %s] ' % ENVIRONMENT.title()
 DEFAULT_FROM_EMAIL = 'noreply@%(DOMAIN)s' % os.environ
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-COMPRESS_ENABLED = True
-
 SESSION_COOKIE_SECURE = True
 
 SESSION_COOKIE_HTTPONLY = True
 
 ALLOWED_HOSTS = [os.environ['DOMAIN']]
+
+# Use template caching on deployed servers
+for backend in TEMPLATES:
+    if backend['BACKEND'] == 'django.template.backends.django.DjangoTemplates':
+        default_loaders = ['django.template.loaders.filesystem.Loader']
+        if backend.get('APP_DIRS', False):
+            default_loaders.append('django.template.loaders.app_directories.Loader')
+            # Django gets annoyed if you both set APP_DIRS True and specify your own loaders
+            backend['APP_DIRS'] = False
+        loaders = backend['OPTIONS'].get('loaders', default_loaders)
+        for loader in loaders:
+            if len(loader) == 2 and loader[0] == 'django.template.loaders.cached.Loader':
+                # We're already caching our templates
+                break
+        else:
+            backend['OPTIONS']['loaders'] = [('django.template.loaders.cached.Loader', loaders)]
 
 # Uncomment if using celery worker configuration
 # CELERY_SEND_TASK_ERROR_EMAILS = True
